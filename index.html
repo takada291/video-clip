@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ビデオクリップ</title>
+  <!-- JSZip for exporting images -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  
+  <style>
+    :root {
+      --primary: #d32f2f;
+      --primary-hover: #b71c1c;
+      --secondary: #1976d2;
+      --secondary-hover: #1565c0;
+      --bg-color: #f5f7fa;
+      --panel-bg: #ffffff;
+      --text-main: #333333;
+      --border-color: #e0e0e0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* トーストメッセージ */
+    #msgBox {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #323232;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: bold;
+      z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      display: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .main-container {
+      display: flex;
+      gap: 20px;
+      flex: 1;
+      min-height: 0; /* Important for flex child scrolling */
+    }
+
+    /* 左ペイン：操作・動画 */
+    .left-pane {
+      flex: 1.2;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      max-width: 65%;
+    }
+
+    .panel {
+      background: var(--panel-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      border: 1px solid var(--border-color);
+    }
+
+    .file-input-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .file-label {
+      background: #e3f2fd;
+      color: var(--secondary-hover);
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      border: 1px solid #bbdefb;
+      transition: background 0.2s;
+    }
+    .file-label:hover { background: #bbdefb; }
+    #videoInput { display: none; }
+    
+    .video-wrapper {
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      min-height: 300px;
+    }
+    
+    #mainVideo {
+      width: 100%;
+      height: 100%;
+      max-height: 50vh;
+      object-fit: contain;
+    }
+
+    /* KPボタン */
+    .btn-kp {
+      width: 100%;
+      background: linear-gradient(135deg, #ff5252, #d32f2f);
+      color: white;
+      border: none;
+      padding: 20px;
+      font-size: 1.5rem;
+      font-weight: bold;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(211, 47, 47, 0.3);
+      transition: transform 0.1s, box-shadow 0.1s;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn-kp:hover {
+      background: linear-gradient(135deg, #ff1744, #b71c1c);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(211, 47, 47, 0.4);
+    }
+    .btn-kp:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 5px rgba(211, 47, 47, 0.3);
+    }
+    .btn-kp:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 15px;
+      margin-top: 10px;
+    }
+
+    .btn-action {
+      flex: 1;
+      padding: 12px;
+      font-size: 1rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+    .btn-copy { background: #ff9800; }
+    .btn-copy:hover { background: #f57c00; }
+    .btn-zip { background: #4caf50; }
+    .btn-zip:hover { background: #388e3c; }
+    .btn-action:disabled { background: #bdbdbd; cursor: not-allowed; }
+
+    /* 右ペイン：ギャラリー */
+    .right-pane {
+      flex: 1;
+      background: var(--panel-bg);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .gallery-header {
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--bg-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .gallery-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      padding-right: 5px;
+    }
+
+    /* KP行のスタイル */
+    .kp-row {
+      background: var(--bg-color);
+      border-radius: 8px;
+      padding: 12px;
+      border: 1px solid var(--border-color);
+    }
+    
+    .kp-header {
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: var(--secondary-hover);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .kp-status {
+      font-size: 0.85rem;
+      color: #666;
+    }
+
+    .kp-images {
+      display: flex;
+      gap: 8px;
+    }
+
+    .kp-img-box {
+      flex: 1;
+      aspect-ratio: 16/9;
+      background: #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+
+    .kp-img-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* ローディングアニメーション */
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(0,0,0,0.1);
+      border-top-color: var(--secondary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    /* 隠し要素 */
+    #hiddenVideo, #hiddenCanvas {
+      display: none;
+    }
+
+    /* スクロールバー装飾 */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+  </style>
+</head>
+<body>
+
+  <!-- 通知メッセージ -->
+  <div id="msgBox">メッセージ</div>
+
+  <header>
+    <h1>🎬 ビデオクリップ v1.0</h1>
+  </header>
+
+  <div class="main-container">
+    
+    <!-- 左ペイン -->
+    <div class="left-pane">
+      <div class="panel file-input-wrapper">
+        <label class="file-label">
+          📁 動画ファイルを選択
+          <input type="file" id="videoInput" accept="video/*">
+        </label>
+        <span id="fileName" style="color: #666; font-size: 0.9rem;">選択されていません</span>
+      </div>
+
+      <div class="panel video-wrapper">
+        <video id="mainVideo" controls></video>
+      </div>
+
+      <div class="panel" style="display: flex; flex-direction: column; gap: 15px;">
+        <button id="btnKP" class="btn-kp" onclick="recordKP()" disabled>
+          🔥 気になるプレー (KP)
+        </button>
+        
+        <div class="action-buttons">
+          <button class="btn-action btn-copy" onclick="copyTimestamps()">📋 YouTube用タイムスタンプをコピー</button>
+          <button id="btnExport" class="btn-action btn-zip" onclick="exportZIP()">📦 画像をZIP保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右ペイン -->
+    <div class="right-pane">
+      <div class="gallery-header">
+        抽出クリップ <span id="kpCount" style="font-size: 0.9rem; color: #666; font-weight: normal;">(0件)</span>
+      </div>
+      <div class="gallery-list" id="galleryList">
+        <!-- KP行がここに追加される -->
+        <div style="text-align: center; color: #999; margin-top: 50px;" id="emptyMsg">
+          気になるプレーを記録すると、<br>前後のコマ（5枚）がここに自動抽出されます。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 裏側で抽出するための隠し要素 -->
+  <video id="hiddenVideo" muted playsinline></video>
+  <canvas id="hiddenCanvas"></canvas>
+
+  <script>
+    // DOM Elements
+    const videoInput = document.getElementById('videoInput');
+    const mainVideo = document.getElementById('mainVideo');
+    const hiddenVideo = document.getElementById('hiddenVideo');
+    const hiddenCanvas = document.getElementById('hiddenCanvas');
+    const hiddenCtx = hiddenCanvas.getContext('2d');
+    const fileNameDiv = document.getElementById('fileName');
+    const btnKP = document.getElementById('btnKP');
+    const galleryList = document.getElementById('galleryList');
+    const emptyMsg = document.getElementById('emptyMsg');
+    const kpCountSpan = document.getElementById('kpCount');
+    const msgBox = document.getElementById('msgBox');
+    const btnExport = document.getElementById('btnExport');
+
+    // 状態管理
+    let kpData = [];
+    let kpCounter = 0;
+    let extractionQueue = [];
+    let isExtracting = false;
+
+    // メッセージ表示
+    function showMessage(text, isError = false) {
+      msgBox.textContent = text;
+      msgBox.style.backgroundColor = isError ? '#d32f2f' : '#323232';
+      msgBox.style.display = 'block';
+      
+      // Force reflow for transition
+      void msgBox.offsetWidth;
+      msgBox.style.opacity = '1';
+      
+      setTimeout(() => {
+        msgBox.style.opacity = '0';
+        setTimeout(() => { msgBox.style.display = 'none'; }, 300);
+      }, 3000);
+    }
+
+    // 時間フォーマット (MM:SS) YouTube用
+    function formatTimeColons(seconds) {
+      const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    // 時間フォーマット (MMmSSs) ファイル名用
+    function formatTimeFile(seconds) {
+      const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+      return `${m}m${s}s`;
+    }
+
+    // 動画ファイル読み込み
+    videoInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        fileNameDiv.textContent = file.name;
+        const objectUrl = URL.createObjectURL(file);
+        
+        mainVideo.src = objectUrl;
+        hiddenVideo.src = objectUrl;
+        
+        mainVideo.onloadedmetadata = () => {
+          btnKP.disabled = false;
+        };
+      }
+    });
+
+    // KP記録（ボタンクリック時）
+    function recordKP() {
+      if (!mainVideo.src || mainVideo.readyState < 1) return;
+      
+      const currentTime = mainVideo.currentTime;
+      kpCounter++;
+      
+      const kp = {
+        id: kpCounter,
+        baseTime: currentTime,
+        formattedTime: formatTimeColons(currentTime),
+        fileTime: formatTimeFile(currentTime),
+        images: [] // dataURLを格納
+      };
+      
+      kpData.push(kp);
+      
+      if (emptyMsg) emptyMsg.style.display = 'none';
+      kpCountSpan.textContent = `(${kpData.length}件)`;
+      
+      buildRowUI(kp);
+      
+      // 抽出キューに追加して処理開始
+      extractionQueue.push(kp);
+      processExtractionQueue();
+    }
+
+    // UI行の生成（枠とローディングスピナー）
+    function buildRowUI(kp) {
+      const row = document.createElement('div');
+      row.className = 'kp-row';
+      row.id = `kp-row-${kp.id}`;
+      
+      let boxesHtml = '';
+      // 5枚分の枠を作成
+      for(let i=0; i<5; i++) {
+        boxesHtml += `
+          <div class="kp-img-box" id="kp-${kp.id}-box-${i}">
+            <div class="spinner"></div>
+          </div>
+        `;
+      }
+
+      row.innerHTML = `
+        <div class="kp-header">
+          <span>KP #${kp.id} - ${kp.formattedTime}</span>
+          <span class="kp-status" id="kp-status-${kp.id}">抽出中...</span>
+        </div>
+        <div class="kp-images">
+          ${boxesHtml}
+        </div>
+      `;
+      
+      // 上に追加していく
+      galleryList.insertBefore(row, galleryList.firstChild);
+    }
+
+    // 抽出キューの処理
+    async function processExtractionQueue() {
+      if (isExtracting || extractionQueue.length === 0) return;
+      isExtracting = true;
+      
+      // キャンバスのサイズを動画サイズに合わせる
+      if (hiddenCanvas.width !== hiddenVideo.videoWidth) {
+        hiddenCanvas.width = hiddenVideo.videoWidth;
+        hiddenCanvas.height = hiddenVideo.videoHeight;
+      }
+
+      while(extractionQueue.length > 0) {
+        const kp = extractionQueue.shift();
+        const duration = hiddenVideo.duration;
+        
+        // ターゲット時間 (T-2, T-1, T, T+1, T+2)
+        const targetTimes = [-2, -1, 0, 1, 2].map(dt => {
+          let t = kp.baseTime + dt;
+          if (t < 0) t = 0;
+          if (t > duration) t = duration;
+          return t;
+        });
+
+        // 5枚連続抽出
+        for (let i = 0; i < 5; i++) {
+          try {
+            await seekHiddenVideo(targetTimes[i]);
+            hiddenCtx.drawImage(hiddenVideo, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+            const dataUrl = hiddenCanvas.toDataURL('image/jpeg', 0.85);
+            kp.images.push(dataUrl);
+            
+            // UI更新
+            const box = document.getElementById(`kp-${kp.id}-box-${i}`);
+            if (box) {
+              box.innerHTML = `<img src="${dataUrl}" alt="frame">`;
+            }
+          } catch (e) {
+            console.error("Frame extraction error:", e);
+          }
+        }
+        
+        // 抽出完了UI
+        const statusEl = document.getElementById(`kp-status-${kp.id}`);
+        if (statusEl) {
+          statusEl.textContent = '完了';
+          statusEl.style.color = '#4caf50';
+        }
+      }
+      
+      isExtracting = false;
+    }
+
+    // 隠し動画のシーク（非同期Promise化）
+    function seekHiddenVideo(time) {
+      return new Promise((resolve) => {
+        // すでにその時間にいる場合はすぐ解決
+        if (Math.abs(hiddenVideo.currentTime - time) < 0.05) {
+          resolve();
+          return;
+        }
+
+        const onSeeked = () => {
+          hiddenVideo.removeEventListener('seeked', onSeeked);
+          resolve();
+        };
+        hiddenVideo.addEventListener('seeked', onSeeked);
+        hiddenVideo.currentTime = time;
+      });
+    }
+
+    // YouTubeタイムスタンプのコピー
+    function copyTimestamps() {
+      if (kpData.length === 0) {
+        showMessage("コピーするデータがありません", true);
+        return;
+      }
+
+      let textContent = "";
+      kpData.forEach(kp => {
+        textContent += `${kp.formattedTime} 気になるプレー${kp.id}\n`;
+      });
+
+      // クリップボードへのコピー (Fallback for iframe restrictions)
+      const textArea = document.createElement("textarea");
+      textArea.value = textContent.trim();
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        showMessage("✅ タイムスタンプをコピーしました！");
+      } catch (err) {
+        showMessage("コピーに失敗しました", true);
+      }
+      document.body.removeChild(textArea);
+    }
+
+    // ZIPエクスポート
+    async function exportZIP() {
+      if (kpData.length === 0) {
+        showMessage("保存する画像がありません", true);
+        return;
+      }
+      if (isExtracting) {
+        showMessage("画像の抽出が終わるまでお待ちください", true);
+        return;
+      }
+
+      btnExport.disabled = true;
+      const originalText = btnExport.innerHTML;
+      btnExport.innerHTML = '⏳ 圧縮中...';
+
+      try {
+        const zip = new JSZip();
+        
+        kpData.forEach(kp => {
+          const numStr = String(kp.id).padStart(2, '0'); // 01, 02
+          
+          kp.images.forEach((dataUrl, index) => {
+            const base64Data = dataUrl.split(',')[1];
+            // ファイル名例: KP01_10m30s_1.jpg
+            const fileName = `KP${numStr}_${kp.fileTime}_${index + 1}.jpg`;
+            zip.file(fileName, base64Data, {base64: true});
+          });
+        });
+
+        const zipBlob = await zip.generateAsync({type: "blob"});
+        const downloadUrl = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        
+        const dateStr = new Date().toISOString().replace(/[:\-\.T]/g, '').slice(0, 14);
+        a.download = `VideoClips_${dateStr}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(downloadUrl);
+        
+        showMessage('✅ ZIPファイルを保存しました');
+      } catch (error) {
+        console.error(error);
+        showMessage('ZIPファイルの生成に失敗しました', true);
+      } finally {
+        btnExport.disabled = false;
+        btnExport.innerHTML = originalText;
+      }
+    }
+  </script>
+</body>
+</html>
