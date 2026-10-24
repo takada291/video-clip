@@ -80,7 +80,7 @@
       display: flex;
       gap: 20px;
       flex: 1;
-      min-height: 0; /* Important for flex child scrolling */
+      min-height: 0;
     }
 
     /* 左ペイン：操作・動画 */
@@ -137,9 +137,34 @@
       object-fit: contain;
     }
 
+    /* 再生コントロールとKPボタンの横並びレイアウト */
+    .kp-controls-wrapper {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+
+    /* スキップボタン */
+    .btn-skip {
+      flex: 0.8;
+      background: #e0e0e0;
+      color: #333;
+      border: none;
+      padding: 15px 10px;
+      font-size: 1rem;
+      font-weight: bold;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .btn-skip:hover { background: #d0d0d0; }
+
     /* KPボタン */
     .btn-kp {
-      width: 100%;
+      flex: 2;
       background: linear-gradient(135deg, #ff5252, #d32f2f);
       color: white;
       border: none;
@@ -174,7 +199,7 @@
     .action-buttons {
       display: flex;
       gap: 15px;
-      margin-top: 10px;
+      margin-top: 5px;
     }
 
     .btn-action {
@@ -324,9 +349,14 @@
       </div>
 
       <div class="panel" style="display: flex; flex-direction: column; gap: 15px;">
-        <button id="btnKP" class="btn-kp" onclick="recordKP()" disabled>
-          🔥 気になるプレー (KP)
-        </button>
+        <!-- スキップボタンとKPボタンを横並びに -->
+        <div class="kp-controls-wrapper">
+          <button class="btn-skip" onclick="skipVideo(-10)">⏪ 10秒戻る</button>
+          <button class="btn-skip" onclick="skipVideo(30)">早送り 30秒 ⏩</button>
+          <button id="btnKP" class="btn-kp" onclick="recordKP()" disabled>
+            🔥 気になるプレー (KP)
+          </button>
+        </div>
         
         <div class="action-buttons">
           <button class="btn-action btn-copy" onclick="copyTimestamps()">📋 YouTube用タイムスタンプをコピー</button>
@@ -419,6 +449,13 @@
         };
       }
     });
+
+    // 動画スキップ機能
+    function skipVideo(seconds) {
+      if (mainVideo.src && mainVideo.readyState > 0) {
+        mainVideo.currentTime = Math.max(0, mainVideo.currentTime + seconds);
+      }
+    }
 
     // KP記録（ボタンクリック時）
     function recordKP() {
